@@ -1,0 +1,21 @@
+[project]
+name = "ameba-mcp"
+version = "0.1.0"
+description = "MCP server for the Ameba Pro2: serial/AT-command control of the board and cloud data access"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.9,<2",
+    "pyserial",
+    "boto3",
+    "python-dotenv",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+ameba-mcp = "server:main"
+
+[tool.hatch.build.targets.wheel]
+include = ["server.py"]
