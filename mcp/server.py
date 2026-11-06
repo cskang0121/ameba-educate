@@ -8,21 +8,25 @@ and read data from cloud services. Tool names are <transport>_<verb>_<target>
 
 import asyncio
 import base64
+import io
 import os
 import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from pathlib import Path, PureWindowsPath
+from typing import Any, Dict, List, Optional, Union
 
 import boto3
 import serial
 import serial.tools.list_ports
 from botocore.exceptions import NoCredentialsError
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
+from mcp.types import ImageContent, TextContent
 
+
+MAX_READ_FRAMES = 4  # hard cap on images returned per call
 PROJECT_DIR = Path(__file__).resolve().parent  # the mcp/ folder, next to pyproject.toml
 
 # Project-root .env; variables already set in the environment win.
@@ -218,36 +222,113 @@ def _fetch_frames_sync(stream_name: str, region: str, lookback_min: float, inter
     return {"saved_files": saved}
 
 
+# @mcp.tool()
+# async def aws_fetch_kvs_frames(stream_name: str = DEFAULT_STREAM, region: str = DEFAULT_REGION,
+#                                lookback_min: float = 2, interval_ms: int = 3000, max_frames: int = 10,
+#                                save_path: str = "frames") -> Dict[str, Any]:
+#     """Download JPEG frames from an AWS Kinesis Video Streams (KVS) stream (GetImages) and save
+#     them locally so the video content can be inspected: read the returned files to see what was recorded.
+#     Returns the newest max_frames frames in the last lookback_min minutes (AWS allows at most
+#     about 4 minutes per request; a longer window is rejected). Works without the
+#     serial connection. Uses AWS credentials from the standard chain (env vars or ~/.aws)."""
+#     if not 0 < lookback_min <= MAX_LOOKBACK_MIN:
+#         return {"status": "error",
+#                 "error": f"lookback_min must be between 0 and {MAX_LOOKBACK_MIN} minutes (got {lookback_min}); "
+#                          "AWS rejects longer GetImages windows."}
+#     try:
+#         result = await asyncio.to_thread(
+#             _fetch_frames_sync, stream_name, region, lookback_min, interval_ms, max_frames, save_path
+#         )
+#     except NoCredentialsError:
+#         return {"status": "error",
+#                 "error": "No AWS credentials found. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or run 'aws configure'."}
+#     except Exception as e:
+#         return {"status": "error", "error": str(e)}
+
+#     saved = result["saved_files"]
+#     response: Dict[str, Any] = {"status": "success", "stream_name": stream_name,
+#                                 "total_frames": len(saved), "saved_files": saved}
+#     if not saved:
+#         response["message"] = f"No frames found in the last {lookback_min} minutes for stream '{stream_name}'"
+#     return response
+
+def _to_wsl_unc(p: str) -> str:
+    """Linux path in WSL -> \\\\wsl.localhost\\<distro>\\... path usable from Windows."""
+    distro = os.environ.get("WSL_DISTRO_NAME")
+    if not distro or not p.startswith("/"):
+        return p
+    return "\\\\wsl.localhost\\" + distro + p.replace("/", "\\")
+
+
 @mcp.tool()
-async def aws_fetch_kvs_frames(stream_name: str = DEFAULT_STREAM, region: str = DEFAULT_REGION,
-                               lookback_min: float = 2, interval_ms: int = 3000, max_frames: int = 10,
-                               save_path: str = "frames") -> Dict[str, Any]:
-    """Download JPEG frames from an AWS Kinesis Video Streams (KVS) stream (GetImages) and save
-    them locally so the video content can be inspected: read the returned files to see what was recorded.
-    Returns the newest max_frames frames in the last lookback_min minutes (AWS allows at most
-    about 4 minutes per request; a longer window is rejected). Works without the
-    serial connection. Uses AWS credentials from the standard chain (env vars or ~/.aws)."""
+async def aws_download_kvs_frames(stream_name: str = DEFAULT_STREAM, region: str = DEFAULT_REGION,
+                                  lookback_min: float = 2, interval_ms: int = 3000,
+                                  max_frames: int = 10, save_path: str = "frames") -> Dict[str, Any]:
+    """Download JPEG frames from an AWS KVS stream and save them locally.
+    Returns only the saved file paths (Linux and Windows-style). Call aws_read_kvs_frames
+    afterwards to view them."""
     if not 0 < lookback_min <= MAX_LOOKBACK_MIN:
         return {"status": "error",
-                "error": f"lookback_min must be between 0 and {MAX_LOOKBACK_MIN} minutes (got {lookback_min}); "
-                         "AWS rejects longer GetImages windows."}
+                "error": f"lookback_min must be between 0 and {MAX_LOOKBACK_MIN} minutes (got {lookback_min})."}
     try:
         result = await asyncio.to_thread(
             _fetch_frames_sync, stream_name, region, lookback_min, interval_ms, max_frames, save_path
         )
     except NoCredentialsError:
-        return {"status": "error",
-                "error": "No AWS credentials found. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or run 'aws configure'."}
+        return {"status": "error", "error": "No AWS credentials found. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or run 'aws configure'."}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
     saved = result["saved_files"]
-    response: Dict[str, Any] = {"status": "success", "stream_name": stream_name,
-                                "total_frames": len(saved), "saved_files": saved}
+    response: Dict[str, Any] = {"status": "success", "total_frames": len(saved), "saved_files": saved}
+    if os.environ.get("WSL_DISTRO_NAME"):
+        response["windows_paths"] = [_to_wsl_unc(p) for p in saved]
     if not saved:
         response["message"] = f"No frames found in the last {lookback_min} minutes for stream '{stream_name}'"
     return response
 
+
+def _load_jpeg(path: Path, max_side: int = 1024) -> bytes:
+    """Downscale to keep the payload small."""
+    try:
+        from PIL import Image as PILImage
+    except ImportError:
+        return path.read_bytes()
+    with PILImage.open(path) as im:
+        im = im.convert("RGB")
+        im.thumbnail((max_side, max_side))
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=80)
+        return buf.getvalue()
+
+
+@mcp.tool()
+async def aws_read_kvs_frames(save_path: str = "frames", max_frames: int = 3,
+                              files: Optional[List[str]] = None):
+    """Return previously downloaded KVS frames as images the model can see.
+    Uses the newest max_frames files in save_path, or the given file names/paths
+    (Linux or \\\\wsl.localhost style; only the file name is used). At most 4 images per call."""
+    base = (PROJECT_DIR / save_path).resolve()
+    if not base.is_dir():
+        return [f"Folder '{save_path}' not found. Run aws_download_kvs_frames first."]
+
+    if files:
+        # PureWindowsPath splits on both '/' and '\', so any path style works
+        paths = [(base / PureWindowsPath(f).name).resolve() for f in files]
+        paths = [p for p in paths if p.parent == base and p.is_file()]
+        paths = sorted(paths, reverse=True)  # newest first (names contain timestamps)
+    else:
+        paths = sorted(base.glob("*.jpg"), reverse=True)[:max_frames]
+
+    if not paths:
+        return [f"No JPEG frames found in '{save_path}'."]
+
+    out = []
+    for p in paths[:MAX_READ_FRAMES]:
+        data = await asyncio.to_thread(_load_jpeg, p)
+        out.append(TextContent(type="text", text=p.name))
+        out.append(ImageContent(type="image", data=base64.b64encode(data).decode(), mimeType="image/jpeg"))
+    return out
 
 def main() -> None:
     # stdout carries the MCP protocol, so status text must go to stderr.

@@ -14,7 +14,7 @@ Tool names are `<transport>_<verb>_<target>`: `serial_*` talks to the board over
 
 ## Requirements
 
-- Windows with `uv` and `claude`. Run it from a Windows path, not `\\wsl.localhost\...`.
+- Windows with `uv` and `claude` (the serial port is a Windows COM port), and this repo in WSL. All commands below run in **PowerShell on Windows** and reach the repo through its WSL path, `\\wsl.localhost\Ubuntu\home\<user>\ameba-edu-pro2`.
 - An Ameba Pro2 connected over USB serial. Wi-Fi is needed for anything that uploads to the cloud.
 
 Per feature:
@@ -24,16 +24,27 @@ Per feature:
 
 ## Setup
 
+PowerShell (Windows), repo on the WSL path. If a Linux `.venv` already exists in `mcp\` (from running `uv sync` inside WSL), delete it first; Windows `uv` cannot reuse it.
+
 ```powershell
-cd C:\path\to\ameba-edu-pro2\mcp
+cd \\wsl.localhost\Ubuntu\home\<user>\ameba-edu-pro2\mcp
 uv sync
 uv run server.py        # should show no error and wait quietly for input; Ctrl+C to stop
 ```
 
-Register it (name right after `add`; answer `n` to any update prompt):
+If you set up an earlier version, remove it first, including any copy deployed under another path. Otherwise the old registration can shadow the new one or point at a folder that no longer exists (PowerShell, Windows):
 
 ```powershell
-claude mcp add ameba-mcp --scope user -- uv --directory C:\path\to\ameba-edu-pro2\mcp run ameba-mcp
+claude mcp list                                  # look for ameba-mcp, ameba-mcp-aws-kvs, or any entry whose path is \\wsl.localhost\...
+claude mcp remove ameba-mcp --scope user         # repeat for each old name; "No MCP server found" means it is already gone
+```
+
+If an entry was added at another scope, rerun with `--scope local` or `--scope project`. Then delete the old server folder under the WSL path, if there is one, and stop any running copy first.
+
+Register it (PowerShell, Windows; name right after `add`; answer `n` to any update prompt):
+
+```powershell
+claude mcp add ameba-mcp --scope user -- uv --directory \\wsl.localhost\Ubuntu\home\<user>\ameba-edu-pro2\mcp run ameba-mcp
 ```
 
 AWS credentials: copy `.env.example` to `.env` in this folder and fill it in. `.env` is git-ignored and is read at server startup (restart the server after editing it). Variables already set in the environment take priority over the file.

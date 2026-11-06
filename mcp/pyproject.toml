@@ -8,6 +8,7 @@ dependencies = [
     "pyserial",
     "boto3",
     "python-dotenv",
+    "pillow>=12.3.0",
 ]
 
 [build-system]
