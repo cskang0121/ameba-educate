@@ -8,7 +8,8 @@ An MCP server for working with an Ameba Pro2 from an AI assistant. It controls t
 | `serial_connect_board` | no | Open the Pro2's serial port |
 | `serial_disconnect_board` | no | Close the Pro2's serial port |
 | `serial_send_at_command` | yes | Send an AT command to the board's console and return its output, e.g. `ATW?`, `ATWS`, `ATW0=`, `ATW1=`, `ATWC`. Which commands exist depends on the firmware running on the board |
-| `aws_fetch_kvs_frames` | no (AWS only) | Download recent video frames from an AWS Kinesis Video Streams (KVS) stream, saved to `frames/` inside this folder (a relative `save_path` is resolved against it, an absolute one is used as is) |
+| `aws_download_kvs_frames` | no (AWS only) | Download recent video frames from an AWS Kinesis Video Streams (KVS) stream, saved to `frames/` inside this folder (a relative `save_path` is resolved against it, an absolute one is used as is). Returns only the saved file paths, not the images; when the server runs inside WSL it also returns them as `\\wsl.localhost\...` paths (`windows_paths`) |
+| `aws_read_kvs_frames` | no | Return frames already saved in `frames/` as images the assistant can see: the newest `max_frames` (default 3), or the files you name (only the file name is used, so Linux and `\\wsl.localhost\...` paths both work). At most 4 images per call, each downscaled to 1024 px on the long side if Pillow is installed (otherwise sent as saved) |
 
 Tool names are `<transport>_<verb>_<target>`: `serial_*` talks to the board over the serial port, `aws_*` talks to AWS and needs only credentials. New tools should follow the same pattern.
 
@@ -20,7 +21,7 @@ Tool names are `<transport>_<verb>_<target>`: `serial_*` talks to the board over
 Per feature:
 
 - **`aws_*` tools:** AWS credentials on the PC with read-only permissions for the service in use (use a read-only key, not the board's upload key).
-- **Video frames (`aws_fetch_kvs_frames`):** the board runs firmware that uploads to KVS, the stream has retention above 0, and the key can call `kinesisvideo:GetDataEndpoint` and `kinesisvideo:GetImages`.
+- **Video frames (`aws_download_kvs_frames`, then `aws_read_kvs_frames`):** the board runs firmware that uploads to KVS, the stream has retention above 0, and the key can call `kinesisvideo:GetDataEndpoint` and `kinesisvideo:GetImages`.
 
 ## Setup
 
@@ -56,7 +57,7 @@ AWS_REGION=us-east-1
 KVS_STREAM_NAME=kvs_example_camera_stream
 ```
 
-`AWS_REGION` is optional (the value above is the default) and `KVS_STREAM_NAME` is only used by the video-frame tool. Both must match where the board uploads. Instead of `.env`, you can run `aws configure` once, or pass the variables with `claude mcp add -e NAME=value` (this stores the secret in plain text in `~/.claude.json`).
+`AWS_REGION` is optional (the value above is the default) and `KVS_STREAM_NAME` is only used by `aws_download_kvs_frames`. Both must match where the board uploads. Instead of `.env`, you can run `aws configure` once, or pass the variables with `claude mcp add -e NAME=value` (this stores the secret in plain text in `~/.claude.json`).
 
 Start a new Claude Code session afterwards. To change dependencies later, stop the MCP server first or `uv sync` cannot replace its `.exe`.
 
@@ -73,7 +74,7 @@ Ask your assistant in plain language. A typical session:
 With the KVS example firmware, `ATKVS=<objects>` (e.g. `ATKVS=person,car`) sets which objects the board watches for.
 
 1. "Set the target object to cell phone." — then stand in front of the camera; the board streams about 30 seconds of video to KVS.
-2. "Fetch frames from the KVS stream and show me what's in them." — downloads recent frames into `frames/` (the default window is the last 2 minutes, at most 4) and shows them.
+2. "Download frames from the KVS stream and show me what's in them." — the assistant first calls `aws_download_kvs_frames` (saves recent frames into `frames/`; the default window is the last 2 minutes, at most 10 frames), then `aws_read_kvs_frames` to view them (at most 4 per call). To look at older frames again without downloading, ask it to read the frames in `frames/`.
 
 Notes:
 
