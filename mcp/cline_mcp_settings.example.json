@@ -4,7 +4,7 @@
       "command": "wsl",
       "args": [
         "-d", "Ubuntu",
-        "--cd", "/your/wsl/path/to/ameba-edu-pro2/mcp",
+        "--cd", "/your/wsl/path/to/repo/mcp",
         "/your/wsl/path/to/.local/bin/uv", "run", "server.py"
       ],
       "disabled": false
