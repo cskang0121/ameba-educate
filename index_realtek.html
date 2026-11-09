@@ -1,0 +1,693 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+        <link rel="stylesheet" href="viewer/amazon-kinesis-video-streams-media-viewer/loader.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.slim.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.490.0/aws-sdk.min.js"></script>
+        <link rel="icon" type="image/png" href="viewer/amazon-kinesis-video-streams-media-viewer/favicon.ico">
+
+        <style>
+            :root {
+                --brand: #0369b8;
+                --brand-dark: #02508c;
+                --brand-soft: #e8f1fa;
+                --ink: #1b2533;
+                --muted: #6b7686;
+                --line: #e3e8ef;
+                --bg: #f4f7fb;
+                --card: #ffffff;
+            }
+
+            body {
+                background: var(--bg);
+                color: var(--ink);
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 12.5px;
+            }
+
+            a { color: var(--brand); }
+            a:hover { color: var(--brand-dark); }
+
+            /* ---------- Header ---------- */
+            .app-header {
+                background: var(--card);
+                border-bottom: 1px solid var(--line);
+                box-shadow: 0 1px 3px rgba(16, 38, 66, 0.04);
+            }
+            .app-header .container-fluid {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 16px;
+                padding-top: 14px;
+                padding-bottom: 14px;
+            }
+            .brand-logo {
+                height: 84px;
+                width: 84px;
+                object-fit: cover;
+                margin: -10px 0;   /* trims the logo's built-in whitespace */
+                flex-shrink: 0;
+            }
+            .brand-divider {
+                width: 1px;
+                align-self: stretch;
+                background: var(--line);
+            }
+            .app-title {
+                flex: 1;
+                min-width: 240px;
+            }
+            .app-title h1 {
+                font-size: 1.1rem;
+                font-weight: 700;
+                margin: 0;
+                letter-spacing: -0.01em;
+            }
+            .app-title h1 .x {
+                color: var(--muted);
+                font-weight: 400;
+                margin: 0 4px;
+            }
+            .app-title p {
+                margin: 2px 0 0;
+                color: var(--muted);
+            }
+            .doc-links a {
+                display: inline-block;
+                padding: 4px 12px;
+                margin-left: 6px;
+                border: 1px solid var(--line);
+                border-radius: 999px;
+                font-size: 11.5px;
+                font-weight: 500;
+                color: var(--ink);
+                text-decoration: none;
+                transition: all .15s ease;
+            }
+            .doc-links a:hover {
+                border-color: var(--brand);
+                color: var(--brand);
+                background: var(--brand-soft);
+            }
+            .doc-links .label {
+                color: var(--muted);
+                font-size: 11.5px;
+            }
+
+            /* ---------- Cards ---------- */
+            .panel {
+                background: var(--card);
+                border: 1px solid var(--line);
+                border-radius: 0;
+                box-shadow: 0 2px 8px rgba(16, 38, 66, 0.04);
+                margin-bottom: 20px;
+            }
+            .panel-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 18px;
+                border-bottom: 1px solid var(--line);
+            }
+            .panel-head h2 {
+                font-size: 0.85rem;
+                font-weight: 600;
+                margin: 0;
+            }
+            .panel-body { padding: 18px; }
+
+            .section-label {
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--brand);
+                margin: 4px 0 10px;
+            }
+            .section-label:not(:first-child) {
+                margin-top: 18px;
+                padding-top: 16px;
+                border-top: 1px dashed var(--line);
+            }
+
+            /* ---------- Form controls ---------- */
+            .form-group { margin-bottom: 12px; }
+            .form-group label {
+                font-size: 11.5px;
+                font-weight: 500;
+                color: var(--muted);
+                margin-bottom: 4px;
+            }
+            .form-control-sm {
+                height: 30px;
+                border-radius: 8px;
+                border-color: var(--line);
+                font-size: 12px;
+                color: var(--ink);
+            }
+            .form-control:focus {
+                border-color: var(--brand);
+                box-shadow: 0 0 0 3px rgba(3, 105, 184, 0.15);
+            }
+            .form-control:disabled {
+                background: #f1f3f6;
+                color: #a3abb7;
+            }
+            .optional {
+                font-weight: 400;
+                color: #a3abb7;
+            }
+
+            details.advanced {
+                margin-top: 18px;
+                padding-top: 14px;
+                border-top: 1px dashed var(--line);
+            }
+            details.advanced summary {
+                cursor: pointer;
+                list-style: none;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--brand);
+                margin-bottom: 10px;
+                outline: none;
+            }
+            details.advanced summary::-webkit-details-marker { display: none; }
+            details.advanced summary::before {
+                content: '\25B8';
+                display: inline-block;
+                margin-right: 6px;
+                transition: transform .15s ease;
+            }
+            details.advanced[open] summary::before { transform: rotate(90deg); }
+
+            .btn-start {
+                width: 100%;
+                margin-top: 16px;
+                padding: 10px;
+                border: none;
+                border-radius: 8px;
+                background: var(--brand);
+                font-weight: 600;
+                letter-spacing: 0.01em;
+                box-shadow: 0 4px 12px rgba(3, 105, 184, 0.25);
+                transition: all .15s ease;
+            }
+            .btn-start:hover,
+            .btn-start:focus {
+                background: var(--brand-dark);
+                box-shadow: 0 6px 16px rgba(3, 105, 184, 0.3);
+            }
+
+            /* ---------- Player ---------- */
+            #playerContainer {
+                position: relative;
+                border-radius: 0;
+                overflow: hidden;
+                background: #0b1220;
+            }
+            #playerContainer,
+            .player {
+                width: 100%;
+                height: auto;
+                min-height: 400px;
+                background-color: #0b1220;
+                outline: none;
+            }
+            .player-placeholder {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                color: #6f7d92;
+                pointer-events: none;
+                text-align: center;
+                padding: 20px;
+            }
+            .player-placeholder svg { margin-bottom: 10px; opacity: .6; }
+            .vjs-big-play-button {
+                display: none !important;
+            }
+
+            .status-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                color: var(--muted);
+            }
+            .status-pill .dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #c2c9d3;
+            }
+
+            /* ---------- Logs ---------- */
+            /* Right column stretches to the settings panel's height;
+               the logs panel takes whatever height is left. */
+            .right-stack {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }
+            .logs-panel {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+            }
+            .log-console {
+                flex: 1;
+                position: relative;
+                min-height: 160px;
+                background: #0f1724;
+                border-radius: 0;
+            }
+            #logs {
+                position: absolute;   /* keeps log text from stretching the layout */
+                top: 0; right: 0; bottom: 0; left: 0;
+                overflow-y: auto;
+                margin: 0;
+                padding: 12px 16px;
+                color: #c9d4e3;
+                font-family: 'JetBrains Mono', SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 11px;
+                line-height: 1.6;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+            .btn-clear {
+                font-size: 12px;
+                padding: 2px 10px;
+                border-radius: 6px;
+                border: 1px solid var(--line);
+                background: transparent;
+                color: var(--muted);
+            }
+            .btn-clear:hover { color: var(--ink); border-color: #c2c9d3; }
+
+            .app-footer {
+                text-align: center;
+                color: var(--muted);
+                font-size: 12px;
+                padding: 8px 0 28px;
+            }
+        </style>
+
+        <title>Ameba Kinesis Video Viewer</title>
+    </head>
+    <body>
+        <header class="app-header mb-4">
+            <div class="container-fluid px-4">
+                <img src="assets/Ameba_AIoT_Logo_White_Background.png" alt="Ameba AIoT Logo" class="brand-logo">
+                <div class="brand-divider d-none d-sm-block"></div>
+                <div class="app-title">
+                    <h1>Realtek RTL8735B<span class="x">&times;</span>Amazon Kinesis Video Streams</h1>
+                    <p>Media viewer for live and archived streams</p>
+                </div>
+                <div class="doc-links">
+                    <span class="label">Docs</span>
+                    <a href="https://docs.aws.amazon.com/kinesisvideostreams/latest/dg/API_reader_GetHLSStreamingSessionURL.html" target="_blank" rel="noopener">HLS</a>
+                    <a href="https://docs.aws.amazon.com/kinesisvideostreams/latest/dg/API_reader_GetDASHStreamingSessionURL.html" target="_blank" rel="noopener">DASH</a>
+                </div>
+            </div>
+        </header>
+
+        <div class="container-fluid px-4 mb-3">
+            <div class="row loader"></div>
+            <div class="main">
+                <div class="row">
+                    <!-- ===== Settings ===== -->
+                    <div class="col-md-4">
+                        <div class="panel">
+                            <div class="panel-head"><h2>Stream Settings</h2></div>
+                            <div class="panel-body">
+
+                                <div class="section-label">Connection</div>
+                                <div class="form-group">
+                                    <label>Region</label>
+                                    <select id="region" class="form-control form-control-sm">
+                                        <option>ap-east-1</option>
+                                        <option>ap-northeast-1</option>
+                                        <option>ap-northeast-2</option>
+                                        <option>ap-south-1</option>
+                                        <option>ap-southeast-1</option>
+                                        <option>ap-southeast-2</option>
+                                        <option>ca-central-1</option>
+                                        <option>eu-central-1</option>
+                                        <option>eu-west-1</option>
+                                        <option>eu-west-2</option>
+                                        <option>eu-west-3</option>
+                                        <option>sa-east-1</option>
+                                        <option selected>us-east-1</option>
+                                        <option>us-east-2</option>
+                                        <option>us-west-2</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>AWS Access Key</label>
+                                    <input id="accessKeyId" type="password" class="form-control form-control-sm" autocomplete="off"/>
+                                </div>
+                                <div class="form-group">
+                                    <label>AWS Secret Key</label>
+                                    <input id="secretAccessKey" type="password" class="form-control form-control-sm" autocomplete="off"/>
+                                </div>
+                                <div class="form-group">
+                                    <label>AWS Session Token <span class="optional">(optional)</span></label>
+                                    <input id="sessionToken" type="password" class="form-control form-control-sm" autocomplete="off"/>
+                                </div>
+                                <div class="form-group">
+                                    <label>Stream Name</label>
+                                    <input id="streamName" type="text" class="form-control form-control-sm"/>
+                                </div>
+
+                                <div class="section-label">Playback</div>
+                                <div class="form-row">
+                                    <div class="form-group col-6">
+                                        <label>Protocol</label>
+                                        <select id="protocol" class="form-control form-control-sm">
+                                            <option>HLS</option>
+                                            <option>DASH</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-6">
+                                        <label>Player</label>
+                                        <select id="player" class="form-control form-control-sm">
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Playback Mode</label>
+                                    <select id="playbackMode" class="form-control form-control-sm">
+                                        <option selected>LIVE</option>
+                                        <option>LIVE_REPLAY</option>
+                                        <option>ON_DEMAND</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Start Timestamp</label>
+                                    <input id="startTimestamp" type="datetime-local" class="form-control form-control-sm"/>
+                                </div>
+                                <div class="form-group">
+                                    <label>End Timestamp</label>
+                                    <input id="endTimestamp" type="datetime-local" class="form-control form-control-sm"/>
+                                </div>
+
+                                <details class="advanced" open>
+                                    <summary>Advanced</summary>
+                                    <div class="form-group">
+                                        <label>Endpoint <span class="optional">(optional)</span></label>
+                                        <input id="endpoint" type="text" class="form-control form-control-sm" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Fragment Selector Type</label>
+                                        <select id="fragmentSelectorType" class="form-control form-control-sm">
+                                            <option selected>SERVER_TIMESTAMP</option>
+                                            <option>PRODUCER_TIMESTAMP</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group col-6">
+                                            <label>Container Format</label>
+                                            <select id="containerFormat" class="form-control form-control-sm">
+                                                <option selected="">FRAGMENTED_MP4</option>
+                                                <option>MPEG_TS</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group col-6">
+                                            <label>Discontinuity Mode</label>
+                                            <select id="discontinuityMode" class="form-control form-control-sm">
+                                                <option selected>ALWAYS</option>
+                                                <option>NEVER</option>
+                                                <option>ON_DISCONTINUITY</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group col-6">
+                                            <label>Show Timestamp</label>
+                                            <select id="displayFragmentTimestamp" class="form-control form-control-sm">
+                                                <option>ALWAYS</option>
+                                                <option selected>NEVER</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group col-6">
+                                            <label>Show Fragment No.</label>
+                                            <select id="displayFragmentNumber" class="form-control form-control-sm">
+                                                <option>ALWAYS</option>
+                                                <option selected>NEVER</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group col-6">
+                                            <label>Max Fragments</label>
+                                            <input id="maxResults" type="text" class="form-control form-control-sm"/>
+                                        </div>
+                                        <div class="form-group col-6">
+                                            <label>Expires (sec)</label>
+                                            <input id="expires" type="text" class="form-control form-control-sm"/>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <button id="start" type="submit" class="btn btn-primary btn-start">&#9654;&nbsp; Start Playback</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== Player + Logs ===== -->
+                    <div class="col-md-8">
+                        <div class="right-stack">
+                            <div class="panel">
+                                <div class="panel-head">
+                                    <h2>Video</h2>
+                                    <span class="status-pill"><span class="dot"></span><span id="statusText">Idle</span></span>
+                                </div>
+                                <div class="panel-body">
+                                    <div id="playerContainer">
+                                        <div class="player-placeholder" id="playerPlaceholder">
+                                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M17 10l5-3v10l-5-3z"/></svg>
+                                            <div>Enter your stream settings and press <strong>Start Playback</strong></div>
+                                        </div>
+
+                                        <!-- HLS.js elements -->
+                                        <video id="hlsjs" class="player" controls autoplay></video>
+                                        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+                                        <!-- VideoJS elements -->
+                                        <video id="videojs" class="player video-js vjs-default-skin" controls autoplay></video>
+                                        <link rel="stylesheet" href="https://vjs.zencdn.net/6.6.3/video-js.css">
+                                        <script src="https://vjs.zencdn.net/6.6.3/video.js"></script>
+                                        <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-hls/5.14.1/videojs-contrib-hls.js"></script>
+
+                                        <!-- Shaka Player elements -->
+                                        <video id="shaka" class="player" controls autoplay></video>
+                                        <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/2.4.1/shaka-player.compiled.js">
+                                        </script>
+
+                                        <!-- DASH.js elements -->
+                                        <video id="dashjs" class="player" controls autoplay=""></video>
+                                        <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="panel logs-panel">
+                                <div class="panel-head">
+                                    <h2>Logs</h2>
+                                    <button type="button" class="btn-clear" id="clearLogs">Clear</button>
+                                </div>
+                                <div class="log-console">
+                                    <pre id="logs"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="app-footer">Ameba AIoT &middot; Powered by Amazon Kinesis Video Streams</footer>
+
+        <script>
+            var DASH_PLAYERS = ['DASH.js', 'Shaka Player'];
+            var HLS_PLAYERS = ['HLS.js', 'Shaka Player', 'VideoJS'];
+
+            $('#clearLogs').click(function() { $('#logs').empty(); });
+
+            // Keep the log view scrolled to the newest line as text is added
+            new MutationObserver(function() {
+                var logs = document.getElementById('logs');
+                logs.scrollTop = logs.scrollHeight;
+            }).observe(document.getElementById('logs'), { childList: true });
+
+            $('#start').click(function() {
+                var protocol = $('#protocol').val();
+                var streamName = $('#streamName').val();
+
+                $('#playerPlaceholder').hide();
+                $('#statusText').text('Connecting…');
+                $('.status-pill .dot').css('background', '#f0ad4e');
+
+                // Step 1: Configure SDK Clients
+                var options = {
+                    accessKeyId: $('#accessKeyId').val(),
+                    secretAccessKey: $('#secretAccessKey').val(),
+                    sessionToken: $('#sessionToken').val() || undefined,
+                    region: $('#region').val(),
+                    endpoint: $('#endpoint').val() || undefined
+                }
+                var kinesisVideo = new AWS.KinesisVideo(options);
+                var kinesisVideoArchivedContent = new AWS.KinesisVideoArchivedMedia(options);
+
+                function setPlaying() {
+                    $('#statusText').text('Playing');
+                    $('.status-pill .dot').css('background', '#28a745');
+                }
+                function setError(err) {
+                    $('#statusText').text('Error');
+                    $('.status-pill .dot').css('background', '#dc3545');
+                    $('#playerPlaceholder').show();
+                    return console.error(err);
+                }
+
+                // Step 2: Get a data endpoint for the stream
+                console.log('Fetching data endpoint');
+                kinesisVideo.getDataEndpoint({
+                    StreamName: streamName,
+                    APIName: protocol === 'DASH' ? "GET_DASH_STREAMING_SESSION_URL" : "GET_HLS_STREAMING_SESSION_URL"
+                }, function(err, response) {
+                    if (err) { return setError(err); }
+                    console.log('Data endpoint: ' + response.DataEndpoint);
+                    kinesisVideoArchivedContent.endpoint = new AWS.Endpoint(response.DataEndpoint);
+
+                    // Step 3: Get a Streaming Session URL
+                    var consoleInfo = 'Fetching ' + protocol + ' Streaming Session URL';
+                    console.log(consoleInfo);
+
+                    if (protocol === 'DASH') {
+                        kinesisVideoArchivedContent.getDASHStreamingSessionURL({
+                            StreamName: streamName,
+                            PlaybackMode: $('#playbackMode').val(),
+                            DASHFragmentSelector: {
+                                FragmentSelectorType: $('#fragmentSelectorType').val(),
+                                TimestampRange: $('#playbackMode').val() === "LIVE" ? undefined : {
+                                    StartTimestamp: new Date($('#startTimestamp').val()),
+                                    EndTimestamp: new Date($('#endTimestamp').val())
+                                }
+                            },
+                            DisplayFragmentTimestamp: $('#displayFragmentTimestamp').val(),
+                            DisplayFragmentNumber: $('#displayFragmentNumber').val(),
+                            MaxManifestFragmentResults: parseInt($('#maxResults').val()),
+                            Expires: parseInt($('#expires').val())
+                        }, function(err, response) {
+                            if (err) { return setError(err); }
+                            console.log('DASH Streaming Session URL: ' + response.DASHStreamingSessionURL);
+
+                            // Step 4: Give the URL to the video player.
+                            var playerName = $('#player').val();
+
+                            if (playerName === 'Shaka Player') {
+                                var playerElement = $('#shaka');
+                                playerElement.show();
+
+                                var player = new shaka.Player(playerElement[0]);
+                                console.log('Created Shaka Player');
+
+                                player.load(response.DASHStreamingSessionURL).then(function() {
+                                    console.log('Starting playback');
+                                    setPlaying();
+                                });
+                                console.log('Set player source');
+                            } else if(playerName === 'DASH.js') {
+                                var playerElement = $('#dashjs');
+                                playerElement.show();
+
+                                var player = dashjs.MediaPlayer().create();
+                                console.log('Created DASH.js Player');
+
+                                player.initialize(document.querySelector('#dashjs'), response.DASHStreamingSessionURL, true);
+                                console.log('Starting playback');
+                                console.log('Set player source');
+                                setPlaying();
+                            }
+                        });
+                    } else {
+                        kinesisVideoArchivedContent.getHLSStreamingSessionURL({
+                            StreamName: streamName,
+                            PlaybackMode: $('#playbackMode').val(),
+                            HLSFragmentSelector: {
+                                FragmentSelectorType: $('#fragmentSelectorType').val(),
+                                TimestampRange: $('#playbackMode').val() === "LIVE" ? undefined : {
+                                    StartTimestamp: new Date($('#startTimestamp').val()),
+                                    EndTimestamp: new Date($('#endTimestamp').val())
+                                }
+                            },
+                            ContainerFormat: $('#containerFormat').val(),
+                            DiscontinuityMode: $('#discontinuityMode').val(),
+                            DisplayFragmentTimestamp: $('#displayFragmentTimestamp').val(),
+                            MaxMediaPlaylistFragmentResults: parseInt($('#maxResults').val()),
+                            Expires: parseInt($('#expires').val())
+                        }, function(err, response) {
+                            if (err) { return setError(err); }
+                            console.log('HLS Streaming Session URL: ' + response.HLSStreamingSessionURL);
+
+                            // Step 4: Give the URL to the video player.
+                            var playerName = $('#player').val();
+                            if (playerName == 'HLS.js') {
+                                var playerElement = $('#hlsjs');
+                                playerElement.show();
+                                var player = new Hls();
+                                console.log('Created HLS.js Player');
+                                player.loadSource(response.HLSStreamingSessionURL);
+                                player.attachMedia(playerElement[0]);
+                                console.log('Set player source');
+                                player.on(Hls.Events.MANIFEST_PARSED, function() {
+                                    playerElement[0].play();
+                                    console.log('Starting playback');
+                                    setPlaying();
+                                });
+                            } else if (playerName === 'VideoJS') {
+                                var playerElement = $('#videojs');
+                                playerElement.show();
+                                var player = videojs('videojs');
+                                console.log('Created VideoJS Player');
+                                player.src({
+                                    src: response.HLSStreamingSessionURL,
+                                    type: 'application/x-mpegURL'
+                                });
+                                console.log('Set player source');
+                                player.play();
+                                console.log('Starting playback');
+                                setPlaying();
+                            } else if (playerName === 'Shaka Player') {
+                                var playerElement = $('#shaka');
+                                playerElement.show();
+                                var player = new shaka.Player(playerElement[0]);
+                                console.log('Created Shaka Player');
+                                player.load(response.HLSStreamingSessionURL).then(function() {
+                                    console.log('Starting playback');
+                                    setPlaying();
+                                });
+                                console.log('Set player source');
+                            }
+                        });
+                    }
+                });
+
+                $('.player').hide();
+            });
+        </script>
+        <script src="viewer/amazon-kinesis-video-streams-media-viewer/ui.js"></script>
+    </body>
+</html>

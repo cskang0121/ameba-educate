@@ -1,0 +1,10 @@
+# path | url | ref (branch or tag) | submodules (yes/no)
+#
+# Rules:
+#   - One repo per line, fields separated by "|". Blank lines and "#" lines are ignored.
+#   - Parents must come BEFORE repos cloned inside them (the producer lives inside the SDK).
+#   - submodules=no for the SDK: one of its submodules points to a private repo.
+ 
+sdk/ameba-rtos-pro2 | https://github.com/Ameba-AIoT/ameba-rtos-pro2.git | main | no
+sdk/ameba-rtos-pro2/project/realtek_amebapro2_v0_example/src/amazon_kvs/lib_amazon/producer | https://github.com/aws-samples/amazon-kinesis-video-streams-producer-embedded-c.git | v1.0.1 | yes
+viewer | https://github.com/aws-samples/amazon-kinesis-video-streams-media-viewer.git | master | no
