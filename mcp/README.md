@@ -7,7 +7,11 @@ An MCP server for working with an Ameba Pro2 from an AI assistant. It controls t
 | `serial_list_pc_ports` | no | List the PC's serial ports |
 | `serial_connect_board` | no | Open the Pro2's serial port |
 | `serial_disconnect_board` | no | Close the Pro2's serial port |
-| `serial_send_at_command` | yes | Send an AT command to the board's console and return its output, e.g. `ATW?`, `ATWS`, `ATW0=`, `ATW1=`, `ATWC`. Which commands exist depends on the firmware running on the board |
+| `serial_connect_wifi` | yes | Join a Wi-Fi network (`ssid`, optional `password`; runs `ATW0`/`ATW1`/`ATWC`) and confirm the board got an IP; returns `{ssid, ip}`. The password is masked in the output |
+| `serial_disconnect_wifi` | yes | Leave the current Wi-Fi network (`ATWD`); also succeeds if the board was not connected |
+| `serial_scan_wifi` | yes | Scan for nearby networks (`ATWS`) and return the raw listing |
+| `serial_set_kvs_target` | yes | KVS firmware only: set which objects trigger a recording (`ATKVS=<objects>`). Names are checked against the 80 COCO classes, e.g. `person`, `car`, `cell phone` |
+| `serial_send_at_command` | yes | Send any other AT command to the board's console and return its output, e.g. `ATW?`. Which commands exist depends on the firmware running on the board |
 | `aws_download_kvs_frames` | no (AWS only) | Download recent video frames from an AWS Kinesis Video Streams (KVS) stream, saved to `frames/` inside this folder (a relative `save_path` is resolved against it, an absolute one is used as is). Returns only the saved file paths, not the images; when the server runs inside WSL it also returns them as `\\wsl.localhost\...` paths (`windows_paths`) |
 | `aws_read_kvs_frames` | no | Return frames already saved in `frames/` as images the assistant can see: the newest `max_frames` (default 3), or the files you name (only the file name is used, so Linux and `\\wsl.localhost\...` paths both work). At most 4 images per call, each downscaled to 1024 px on the long side if Pillow is installed (otherwise sent as saved) |
 
@@ -66,12 +70,13 @@ Start a new Claude Code session afterwards. To change dependencies later, stop t
 Ask your assistant in plain language. A typical session:
 
 1. "List all available PC ports." — shows the serial ports you can connect to.
-2. "Connect to COM5." then "Run `ATW?`" — opens the board and checks that Wi-Fi has an IP. If not, join with `ATW0=<ssid>`, `ATW1=<password>`, `ATWC`.
-3. Send whatever AT commands your firmware supports.
+2. "Connect to COM5." — opens the board.
+3. "Scan for Wi-Fi networks." then "Connect to Wi-Fi `<ssid>` with password `<password>`." — the assistant calls `serial_scan_wifi` and `serial_connect_wifi`, which reports the IP the board received. "Disconnect from Wi-Fi" leaves the network.
+4. For anything else, "Run `ATW?`" or any AT command your firmware supports (`serial_send_at_command`).
 
 ### Example: object-triggered video (KVS firmware)
 
-With the KVS example firmware, `ATKVS=<objects>` (e.g. `ATKVS=person,car`) sets which objects the board watches for.
+With the KVS example firmware, `serial_set_kvs_target` (`ATKVS=<objects>`, e.g. `person,car`) sets which objects the board watches for.
 
 1. "Set the target object to cell phone." — then stand in front of the camera; the board streams about 30 seconds of video to KVS.
 2. "Download frames from the KVS stream and show me what's in them." — the assistant first calls `aws_download_kvs_frames` (saves recent frames into `frames/`; the default window is the last 2 minutes, at most 10 frames), then `aws_read_kvs_frames` to view them (at most 4 per call). To look at older frames again without downloading, ask it to read the frames in `frames/`.
@@ -80,3 +85,4 @@ Notes:
 
 - Only one program can hold the serial port at a time; close Tera Term or other serial monitors first.
 - Never put AWS keys in the firmware source, this repo or chat. If one is exposed, deactivate it in IAM.
+- The Wi-Fi password you give `serial_connect_wifi` passes through the chat and the MCP client's logs. Use a guest or throwaway network where that matters.

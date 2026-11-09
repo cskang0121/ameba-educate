@@ -3,7 +3,8 @@ Ameba MCP server
 
 Tools for working with an Ameba Pro2 board: control it over serial (AT commands)
 and read data from cloud services. Tool names are <transport>_<verb>_<target>
-(serial_*, aws_*); add new tools in the same style.
+(serial_*, aws_*); add new tools in the same style. Common AT sequences get their own
+tool (serial_connect_wifi, ...); serial_send_at_command stays as the generic fallback.
 """
 
 import asyncio
@@ -42,6 +43,22 @@ MAX_LOOKBACK_MIN = 4  # longest GetImages time window AWS accepts
 # The firmware console prints this, then a "#" prompt, after every command (also unknown ones).
 # The board streams log lines nonstop, so waiting for quiet never works; this marks the end instead.
 CMD_DONE = re.compile(r"\[MEM\] After do cmd.*?#", re.DOTALL)
+
+# "ATW?" prints "IP  => a.b.c.d" per interface; the first one is the station (wlan0).
+WIFI_IP = re.compile(r"\bIP\s+=>\s+(\d+\.\d+\.\d+\.\d+)")
+
+# Object names the detector can report (sdk/.../src/test_model/nn_utils/class_name.c, coco_names).
+COCO_NAMES = frozenset({
+    "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat", "traffic light",
+    "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+    "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa",
+    "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard",
+    "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
+    "scissors", "teddy bear", "hair drier", "toothbrush",
+})
 
 mcp = FastMCP("ameba-mcp")
 
@@ -169,16 +186,108 @@ async def serial_disconnect_board() -> Dict[str, Any]:
 @mcp.tool()
 async def serial_send_at_command(command: str, idle_timeout_s: float = 1.0,
                                  wait_for_prompt: bool = True) -> Dict[str, Any]:
-    """Send an AT command to the board's console and return its output. Which commands exist
-    depends on the firmware. Examples: "ATW?" (Wi-Fi status), "ATWS" (Wi-Fi scan), and for the KVS
-    example firmware "ATKVS=person,car" (record when one of those COCO objects is detected).
+    """Send any AT command to the board's console and return its output. Which commands exist
+    depends on the firmware. Prefer serial_connect_wifi, serial_disconnect_wifi, serial_scan_wifi
+    and serial_set_kvs_target when one fits; use this for everything else (e.g. "ATW?" for status).
     Returns as soon as the console prints its end-of-command prompt. Set wait_for_prompt=False
-    for slow commands whose result arrives after that prompt (e.g. ATWS); it then returns once
+    for slow commands whose result arrives after that prompt; it then returns once
     the output has stayed quiet for idle_timeout_s (or after 10 s)."""
     if not board.connected:
         return _not_connected()
     try:
         return {"status": "success", "command": command, "response": await board.send(command, idle=idle_timeout_s, wait_for_prompt=wait_for_prompt)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+def _bad_line(value: str) -> bool:
+    """True if value would break out of a single console line."""
+    return any(c in value for c in "\r\n\0")
+
+
+async def _wifi_ip(tries: int = 1) -> Optional[str]:
+    """The station's IPv4 address from ATW?, or None if it has none yet."""
+    for i in range(tries):
+        if i:
+            await asyncio.sleep(1)
+        m = WIFI_IP.search(await board.send("ATW?"))
+        if m and m.group(1) != "0.0.0.0":
+            return m.group(1)
+    return None
+
+
+@mcp.tool()
+async def serial_connect_wifi(ssid: str, password: str = "") -> Dict[str, Any]:
+    """Join a Wi-Fi network (ATW0/ATW1/ATWC) and confirm the board got an IP address. Leave
+    password empty for an open network. Takes up to about 30 s. The board prints the password
+    back on its console; it is masked in this tool's output."""
+    if not board.connected:
+        return _not_connected()
+    if not ssid or len(ssid.encode()) > 32 or _bad_line(ssid) or _bad_line(password):
+        return {"status": "error", "error": "ssid must be 1-32 bytes; ssid and password must be single-line text."}
+
+    def mask(text: str) -> str:
+        return text.replace(password, "***") if password else text
+
+    try:
+        steps = [f"ATW0={ssid}"] + ([f"ATW1={password}"] if password else [])
+        for step in steps:
+            cmd = step.split("=")[0]
+            reply = await board.send(step)
+            if f"[{cmd}]Usage" in reply or f"[{cmd}]Error" in reply:
+                return {"status": "error", "error": f"{cmd} rejected the value.", "response": mask(reply)}
+        reply = mask(await board.send("ATWC", idle=30.0, max_seconds=30.0))
+        if "Got IP" not in reply:
+            return {"status": "error", "error": "Could not join the network (check SSID, password and signal).", "response": reply}
+        ip = await _wifi_ip(tries=5)
+        if not ip:
+            return {"status": "error", "error": "Joined the network but no IP address was assigned (DHCP).", "response": reply}
+        return {"status": "success", "ssid": ssid, "ip": ip}
+    except Exception as e:
+        return {"status": "error", "error": mask(str(e))}
+
+
+@mcp.tool()
+async def serial_disconnect_wifi() -> Dict[str, Any]:
+    """Leave the current Wi-Fi network (ATWD). Succeeds too if the board was not connected."""
+    if not board.connected:
+        return _not_connected()
+    try:
+        reply = await board.send("ATWD", idle=25.0, max_seconds=25.0)
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+    if "ERROR" in reply:
+        return {"status": "error", "error": "Disconnect failed.", "response": reply}
+    return {"status": "success", "response": reply}
+
+
+@mcp.tool()
+async def serial_scan_wifi() -> Dict[str, Any]:
+    """Scan for nearby Wi-Fi networks (ATWS) and return the raw console listing (SSID, signal,
+    channel, security). Takes a few seconds."""
+    if not board.connected:
+        return _not_connected()
+    try:
+        return {"status": "success", "response": await board.send("ATWS", idle=4.0, max_seconds=15.0, wait_for_prompt=False)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@mcp.tool()
+async def serial_set_kvs_target(objects: List[str]) -> Dict[str, Any]:
+    """KVS example firmware only: choose which objects trigger a recording (ATKVS=<objects>). Names
+    must be COCO class names such as "person", "car", "cell phone", "dog". The board then streams
+    video to KVS when one of them is detected. The reply is the firmware's own text, not parsed."""
+    if not board.connected:
+        return _not_connected()
+    names = [o.strip().lower() for o in objects if o.strip()]
+    unknown = [n for n in names if n not in COCO_NAMES]
+    if not names or unknown:
+        return {"status": "error",
+                "error": f"Unknown object name(s): {unknown}." if unknown else "Give at least one object name.",
+                "hint": "Names are COCO classes, e.g. person, car, dog, cell phone, laptop, backpack."}
+    try:
+        return {"status": "success", "objects": names, "response": await board.send("ATKVS=" + ",".join(names))}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
