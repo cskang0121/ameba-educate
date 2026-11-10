@@ -23,6 +23,10 @@ step() {
   echo "$LINE"
 }
 
+ok() {
+  echo "    OK: $1"
+}
+
 trim() {
   local s=$1
   s="${s#"${s%%[![:space:]]*}"}"
@@ -30,10 +34,12 @@ trim() {
   printf '%s' "$s"
 }
 
+step "Prerequisites"
 command -v git  >/dev/null || { echo "git not found. Run: sudo apt install -y git"; exit 1; }
 command -v curl >/dev/null || { echo "curl not found. Run: sudo apt install -y curl"; exit 1; }
 command -v tar  >/dev/null || { echo "tar not found. Run: sudo apt install -y tar bzip2"; exit 1; }
 [ -f "$MANIFEST" ] || { echo "Manifest not found: $MANIFEST"; exit 1; }
+ok "git, curl, tar found; manifest $MANIFEST present"
 
 # ---- clone / update one repo ----
 sync_repo() {
@@ -68,6 +74,7 @@ while IFS='|' read -r -u 3 path url ref subs; do
   fi
   step "Repo: $path ($ref, submodules: $subs)"
   sync_repo "$path" "$url" "$ref" "$subs"
+  ok "$path at $ref ($(git -C "$path" rev-parse --short HEAD))"
 done 3< "$MANIFEST"
 
 # ---- 2. Move test example -> SDK ----
@@ -76,12 +83,12 @@ done 3< "$MANIFEST"
 step "Examples -> $EXAMPLE_DEST"
 for ex in "${EXAMPLES[@]}"; do
   if [ -d "$EXAMPLE_DEST/$ex" ]; then
-    echo "    $ex already in SDK, skipping"
+    ok "$ex already in SDK, skipped (build with -DEXAMPLE=$ex)"
     continue
   fi
   [ -d "$ex" ] || { echo "Example folder not found: $ex" >&2; exit 1; }
   cp -r "$ex" "$EXAMPLE_DEST/$ex"
-  echo "    $ex -> $EXAMPLE_DEST/$ex  (build with -DEXAMPLE=$ex)"
+  ok "$ex copied to $EXAMPLE_DEST/$ex (build with -DEXAMPLE=$ex)"
 done
 
 # ---- 3. Setup toolchain ----
@@ -106,12 +113,13 @@ else
   echo "    extracting to $TOOLCHAIN_DEST (this takes a minute)"
   tar -jxf "$ARCHIVE" -C "$TOOLCHAIN_DEST"
 fi
+ok "$TOP_DIR in $TOOLCHAIN_DEST"
 
 # ---- 4. Verify + cleanup ----
 step "Verify"
 GCC=$(compgen -G "$BIN_DIR/*-gcc" | head -n1 || true)
 [ -n "$GCC" ] || { echo "Error: no compiler (*-gcc) found in $BIN_DIR" >&2; exit 1; }
-echo "    OK: $(basename "$GCC")"
+ok "$(basename "$GCC")"
 
 # Only clean up after verification
 rm -f "$ARCHIVE"
@@ -122,6 +130,7 @@ for old in "$TOOLCHAIN_DEST"/asdk-*; do
     echo "    removed old toolchain $old"
   fi
 done
+ok "cleanup done"
 
 echo
 echo "$LINE"
