@@ -52,8 +52,8 @@ sudo apt install -y git curl tar bzip2 cmake make
 ### 1. Bootstrap the workspace (WSL)
 
 ```bash
-git clone <this-repo-url> ameba-edu-pro2
-cd ameba-edu-pro2
+git clone <this-repo-url> ameba-educate
+cd ameba-educate
 ./bootstrap.sh
 ```
 

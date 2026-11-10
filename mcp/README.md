@@ -19,7 +19,7 @@ Tool names are `<transport>_<verb>_<target>`: `serial_*` talks to the board over
 
 ## Requirements
 
-- Windows with `uv` and `claude` (the serial port is a Windows COM port), and this repo in WSL. All commands below run in **PowerShell on Windows** and reach the repo through its WSL path, `\\wsl.localhost\Ubuntu\home\<user>\ameba-edu-pro2`.
+- Windows with `uv` and `claude` (the serial port is a Windows COM port), and this repo in WSL. All commands below run in **PowerShell on Windows** and reach the repo through its WSL path, `\\wsl.localhost\Ubuntu\home\<user>\ameba-educate`.
 - An Ameba Pro2 connected over USB serial. Wi-Fi is needed for anything that uploads to the cloud.
 
 Per feature:
@@ -32,7 +32,7 @@ Per feature:
 PowerShell (Windows), repo on the WSL path. If a Linux `.venv` already exists in `mcp\` (from running `uv sync` inside WSL), delete it first; Windows `uv` cannot reuse it.
 
 ```powershell
-cd \\wsl.localhost\Ubuntu\home\<user>\ameba-edu-pro2\mcp
+cd \\wsl.localhost\Ubuntu\home\<user>\ameba-educate\mcp
 uv sync
 uv run server.py        # should show no error and wait quietly for input; Ctrl+C to stop
 ```
@@ -49,7 +49,7 @@ If an entry was added at another scope, rerun with `--scope local` or `--scope p
 Register it (PowerShell, Windows; name right after `add`; answer `n` to any update prompt):
 
 ```powershell
-claude mcp add ameba-mcp --scope user -- uv --directory \\wsl.localhost\Ubuntu\home\<user>\ameba-edu-pro2\mcp run ameba-mcp
+claude mcp add ameba-mcp --scope user -- uv --directory \\wsl.localhost\Ubuntu\home\<user>\ameba-educate\mcp run ameba-mcp
 ```
 
 AWS credentials: copy `.env.example` to `.env` in this folder and fill it in. `.env` is git-ignored and is read at server startup (restart the server after editing it). Variables already set in the environment take priority over the file.
