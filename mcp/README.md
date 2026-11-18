@@ -13,7 +13,7 @@ An MCP server for working with an Ameba Pro2 from an AI assistant. It controls t
 | `serial_set_kvs_target` | yes | KVS firmware only: set which objects trigger a recording (`ATKVS=<objects>`). Names are checked against the 80 COCO classes, e.g. `person`, `car`, `cell phone` |
 | `serial_send_at_command` | yes | Send any other AT command to the board's console and return its output, e.g. `ATW?`. Which commands exist depends on the firmware running on the board |
 | `aws_download_kvs_frames` | no (AWS only) | Download recent video frames from an AWS Kinesis Video Streams (KVS) stream, saved to `frames/` inside this folder (a relative `save_path` is resolved against it, an absolute one is used as is). Returns only the saved file paths, not the images; when the server runs inside WSL it also returns them as `\\wsl.localhost\...` paths (`windows_paths`) |
-| `aws_read_kvs_frames` | no | Return frames already saved in `frames/` as images the assistant can see: the newest `max_frames` (default 3), or the files you name (only the file name is used, so Linux and `\\wsl.localhost\...` paths both work). At most 4 images per call, each downscaled to 1024 px on the long side if Pillow is installed (otherwise sent as saved) |
+| `aws_analyze_kvs_frames` | no (vision API only) | Send frames already saved in `frames/` to a vision model with your own `prompt` and return its text answer (the assistant does not see the images itself). Frames: the newest `max_frames` (default 1), or the files you name via `files` (only the file name is used, so Linux and `\\wsl.localhost\...` paths both work); at most 4 per call. Optional `crop_region` (`x0,y0,x1,y1` as fractions 0-1, e.g. `0,0.3,0.5,0.9`) zooms into part of the frame to read small text, and `context` adds extra info such as detector output. Frames are re-encoded to JPEG (max 1568 px on the long side). The answer is prefixed with the provider and model used, e.g. `[anthropic:claude-sonnet-5-5]` |
 
 Tool names are `<transport>_<verb>_<target>`: `serial_*` talks to the board over the serial port, `aws_*` talks to AWS and needs only credentials. New tools should follow the same pattern.
 
@@ -25,7 +25,8 @@ Tool names are `<transport>_<verb>_<target>`: `serial_*` talks to the board over
 Per feature:
 
 - **`aws_*` tools:** AWS credentials on the PC with read-only permissions for the service in use (use a read-only key, not the board's upload key).
-- **Video frames (`aws_download_kvs_frames`, then `aws_read_kvs_frames`):** the board runs firmware that uploads to KVS, the stream has retention above 0, and the key can call `kinesisvideo:GetDataEndpoint` and `kinesisvideo:GetImages`.
+- **Video frames (`aws_download_kvs_frames`):** the board runs firmware that uploads to KVS, the stream has retention above 0, and the key can call `kinesisvideo:GetDataEndpoint` and `kinesisvideo:GetImages`.
+- **Frame analysis (`aws_analyze_kvs_frames`):** an Anthropic or Gemini API key in `.env` (see Setup). Frames are sent to that provider's API, so don't use it on footage you may not share.
 
 ## Setup
 
@@ -52,16 +53,30 @@ Register it (PowerShell, Windows; name right after `add`; answer `n` to any upda
 claude mcp add ameba-mcp --scope user -- uv --directory \\wsl.localhost\Ubuntu\home\<user>\ameba-educate\mcp run ameba-mcp
 ```
 
-AWS credentials: copy `.env.example` to `.env` in this folder and fill it in. `.env` is git-ignored and is read at server startup (restart the server after editing it). Variables already set in the environment take priority over the file.
+Credentials: copy `.env.example` to `.env` in this folder and fill it in. `.env` is git-ignored. AWS and `KVS_STREAM_NAME` values are read at server startup (restart the server after editing them). The vision keys are re-read from `.env` on every `aws_analyze_kvs_frames` call, so changing them needs no restart. Variables already set in the environment take priority over the file.
 
 ```
 AWS_ACCESS_KEY_ID=<read-only key id>
 AWS_SECRET_ACCESS_KEY=<read-only secret>
 AWS_REGION=us-east-1
 KVS_STREAM_NAME=kvs_example_camera_stream
+
+# Vision analysis: set at least one key
+ANTHROPIC_API_KEY=<key>
+GEMINI_API_KEY=<key>
 ```
 
 `AWS_REGION` is optional (the value above is the default) and `KVS_STREAM_NAME` is only used by `aws_download_kvs_frames`. Both must match where the board uploads. Instead of `.env`, you can run `aws configure` once, or pass the variables with `claude mcp add -e NAME=value` (this stores the secret in plain text in `~/.claude.json`).
+
+Vision provider selection for `aws_analyze_kvs_frames`: Anthropic is used if `ANTHROPIC_API_KEY` is set, otherwise Gemini (`GEMINI_API_KEY` or `GOOGLE_API_KEY`). Optional variables in `.env`:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VISION_PROVIDER` | (auto) | `anthropic` or `gemini` to force one provider |
+| `ANTHROPIC_VISION_MODEL` | `claude-sonnet-5-5` | Anthropic model to use |
+| `GEMINI_VISION_MODEL` | `gemini-2.5-flash` | Gemini model to use |
+
+The server prints the selected provider to stderr at startup.
 
 Start a new Claude Code session afterwards. To change dependencies later, stop the MCP server first or `uv sync` cannot replace its `.exe`.
 
@@ -79,10 +94,10 @@ Ask your assistant in plain language. A typical session:
 With the KVS example firmware, `serial_set_kvs_target` (`ATKVS=<objects>`, e.g. `person,car`) sets which objects the board watches for.
 
 1. "Set the target object to cell phone." — then stand in front of the camera; the board streams about 30 seconds of video to KVS.
-2. "Download frames from the KVS stream and show me what's in them." — the assistant first calls `aws_download_kvs_frames` (saves recent frames into `frames/`; the default window is the last 2 minutes, at most 10 frames), then `aws_read_kvs_frames` to view them (at most 4 per call). To look at older frames again without downloading, ask it to read the frames in `frames/`.
+2. "Download frames from the KVS stream and tell me how many people are in them." — the assistant first calls `aws_download_kvs_frames` (saves recent frames into `frames/`; the default window is the last 2 minutes, at most 10 frames), then `aws_analyze_kvs_frames` with your question (at most 4 frames per call; the default prompt asks how many people are visible). To ask something else about older frames without downloading, ask it to analyze the frames in `frames/`. To read small text, ask it to zoom into a region of the frame.
 
 Notes:
 
 - Only one program can hold the serial port at a time; close Tera Term or other serial monitors first.
-- Never put AWS keys in the firmware source, this repo or chat. If one is exposed, deactivate it in IAM.
+- Never put AWS keys in the firmware source, this repo or chat. If one is exposed, deactivate it in IAM. The same applies to Anthropic and Gemini keys: revoke them in the provider's console.
 - The Wi-Fi password you give `serial_connect_wifi` passes through the chat and the MCP client's logs. Use a guest or throwaway network where that matters.

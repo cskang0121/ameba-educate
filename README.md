@@ -115,9 +115,11 @@ The [`mcp/`](mcp/README.md) server exposes the board and the cloud stream to an 
 | Serial connection | `serial_list_pc_ports`, `serial_connect_board`, `serial_disconnect_board` |
 | Wi-Fi | `serial_scan_wifi`, `serial_connect_wifi`, `serial_disconnect_wifi` |
 | Board console | `serial_send_at_command`, `serial_set_kvs_target` |
-| KVS video | `aws_download_kvs_frames`, `aws_read_kvs_frames` |
+| KVS video | `aws_download_kvs_frames`, `aws_analyze_kvs_frames` |
 
-Example prompts: *"Connect to COM5"*, *"Scan for Wi-Fi networks"*, *"Set the target object to person"*, *"Download frames from the KVS stream and show me what's in them."*
+`aws_analyze_kvs_frames` sends the downloaded frames to a vision model (Anthropic or Gemini) with your question and returns its answer. It needs an `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` in `mcp/.env`.
+
+Example prompts: *"Connect to COM5"*, *"Scan for Wi-Fi networks"*, *"Set the target object to person"*, *"Download frames from the KVS stream and tell me how many people are in them."*
 
 Setup and registration steps are in [`mcp/README.md`](mcp/README.md).
 
@@ -148,5 +150,5 @@ To change a pinned version, edit `dependencies.txt` (or `TOOLCHAIN_URL` in `boot
 ## Resources
 
 - [Ameba AIoT on GitHub](https://github.com/Ameba-AIoT)
-- [Ameba developer forum](https://forum.amebaiot.com)
-- [Amazon Kinesis Video Streams documentation](https://docs.aws.amazon.com/kinesisvideostreams/)
+- [Ameba AIoT Developer Forum](https://forum.amebaiot.com)
+- [Amazon Kinesis Video Streams Documentation](https://docs.aws.amazon.com/kinesisvideostreams/)

@@ -9,6 +9,8 @@ dependencies = [
     "boto3",
     "python-dotenv",
     "pillow>=12.3.0",
+    "anthropic>=2.8.0",
+    "google-genai>=2.33.0",
 ]
 
 [build-system]
