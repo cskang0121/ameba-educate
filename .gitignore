@@ -1,3 +1,4 @@
 /viewer/
 tool_chain/
 sdk/ameba-rtos-pro2/
+example/kvs_producer_mmf/sample_config.h

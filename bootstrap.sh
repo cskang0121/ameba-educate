@@ -14,6 +14,8 @@ FORCE=${FORCE:-0}   # FORCE=1 ./bootstrap.sh to reinstall the toolchain
 # Our own examples, kept at the repo root and copied into the SDK after cloning
 EXAMPLES=(hello_world)
 EXAMPLE_DEST=$SDK/component/example
+# Our modified versions of examples that already ship with the SDK; they replace the SDK's copy on every run
+OVERRIDES=(kvs_producer_mmf)
 
 LINE="##########################################################"
 step() {
@@ -89,6 +91,17 @@ for ex in "${EXAMPLES[@]}"; do
   [ -d "$ex" ] || { echo "Example folder not found: $ex" >&2; exit 1; }
   cp -r "$ex" "$EXAMPLE_DEST/$ex"
   ok "$ex copied to $EXAMPLE_DEST/$ex (build with -DEXAMPLE=$ex)"
+done
+
+# ---- 2b. Replace SDK examples with our modified versions ----
+# Unlike step 2, this always replaces: the SDK's folder is removed first so no stale files are left behind.
+# Sources live in example/ at the repo root.
+step "Example overrides -> $EXAMPLE_DEST"
+for ex in "${OVERRIDES[@]}"; do
+  [ -d "example/$ex" ] || { echo "Override folder not found: example/$ex" >&2; exit 1; }
+  rm -rf "${EXAMPLE_DEST:?}/$ex"
+  cp -r "example/$ex" "$EXAMPLE_DEST/$ex"
+  ok "$ex replaced in $EXAMPLE_DEST/$ex (build with -DEXAMPLE=$ex)"
 done
 
 # ---- 3. Setup toolchain ----

@@ -29,10 +29,11 @@ video-streaming demo:
 | `bootstrap.sh` | Clones the repositories listed in `dependencies.txt`, copies the examples into the SDK and installs the toolchain |
 | `dependencies.txt` | Manifest of repositories to clone (path, URL, branch or tag, submodules) |
 | `hello_world/` | Minimal example that confirms build and flash work. No wiring or Wi-Fi needed |
+| `example/kvs_producer_mmf/` | Modified KVS producer example. `bootstrap.sh` replaces the SDK's copy with it on every run |
 | `sdk/README.md` | SDK configuration, build and flash instructions |
 | `mcp/` | MCP server for serial control and KVS frame retrieval. See [`mcp/README.md`](mcp/README.md) |
 | `index_realtek.html` | Browser viewer for the Kinesis Video Streams output |
-| `assets/` | Branding assets |
+| `assets/` | Logo, plus `loader.css` and `ui.js` for the viewer page (in `assets/viewer/`) |
 
 Cloned at bootstrap time and git-ignored: `sdk/ameba-rtos-pro2/`, `viewer/` and `tool_chain/`.
 
@@ -61,7 +62,8 @@ The script is idempotent and safe to re-run. It:
 
 1. Clones or updates each repository in `dependencies.txt`.
 2. Copies the examples (currently `hello_world`) into `sdk/ameba-rtos-pro2/component/example/`. Existing copies are never overwritten.
-3. Downloads and extracts the Ameba toolchain into `sdk/ameba-rtos-pro2/tools/`, then verifies the compiler.
+3. Replaces the SDK's `kvs_producer_mmf` example with the modified version in `example/kvs_producer_mmf/`. This one is overwritten on every run, so edit the copy in `example/`, not the one in the SDK.
+4. Downloads and extracts the Ameba toolchain into `sdk/ameba-rtos-pro2/tools/`, then verifies the compiler.
 
 Set `FORCE=1` to reinstall the toolchain:
 
@@ -103,6 +105,8 @@ See [`hello_world/readme.txt`](hello_world/readme.txt) for details.
 
 Configure the sensor, mbedTLS version and AWS credentials, then build with `-DEXAMPLE=kvs_producer_mmf`.
 The full procedure is in [`sdk/README.md`](sdk/README.md).
+
+The AWS key and secret in `example/kvs_producer_mmf/sample_config.h` are placeholders. Enter your real values in the SDK's copy (`sdk/ameba-rtos-pro2/component/example/kvs_producer_mmf/sample_config.h`) after running `bootstrap.sh`, and never commit them. The next `bootstrap.sh` run replaces that file with the placeholders again.
 
 > **Security:** never commit AWS keys. Use a dedicated key for the board, and a separate read-only key for the MCP server.
 
