@@ -129,7 +129,7 @@ Setup and registration steps are in [`mcp/README.md`](mcp/README.md).
 
 ## Viewing the Stream
 
-Open `index_realtek.html` in a browser to watch the Kinesis Video Streams output. The page loads its styles, script and logo from `assets/` (`assets/viewer/loader.css` and `ui.js` are copied from the AWS media-viewer sample), so it also works when hosted on GitHub Pages. You will need AWS credentials with read access to the stream.
+Open the hosted viewer at <https://cskang0121.github.io/ameba-educate/index_realtek.html>, or open `index_realtek.html` locally in a browser, to watch the Kinesis Video Streams output. The page loads its styles, script and logo from `assets/` (`assets/viewer/loader.css` and `ui.js` are copied from the AWS media-viewer sample), so it also works when hosted on GitHub Pages. You will need AWS credentials with read access to the stream.
 
 ## Versions
 
