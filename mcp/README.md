@@ -19,7 +19,7 @@ Tool names are `<transport>_<verb>_<target>`: `serial_*` talks to the board over
 
 ## Requirements
 
-- Windows with `uv` and `claude` (the serial port is a Windows COM port), and this repo in WSL. All commands below run in **PowerShell on Windows** and reach the repo through its WSL path, `\\wsl.localhost\Ubuntu\home\<user>\ameba-educate`.
+- [Cline](https://cline.bot) (VS Code extension), and `uv` installed in WSL, with this repo in WSL. Cline starts the server itself through `wsl`; you don't run it by hand except to test it.
 - An Ameba Pro2 connected over USB serial. Wi-Fi is needed for anything that uploads to the cloud.
 
 Per feature:
@@ -30,28 +30,35 @@ Per feature:
 
 ## Setup
 
-PowerShell (Windows), repo on the WSL path. If a Linux `.venv` already exists in `mcp\` (from running `uv sync` inside WSL), delete it first; Windows `uv` cannot reuse it.
+In a WSL terminal, install the dependencies and check that the server starts:
 
-```powershell
-cd \\wsl.localhost\Ubuntu\home\<user>\ameba-educate\mcp
+```bash
+cd ~/<path-to>/ameba-educate/mcp
 uv sync
 uv run server.py        # should show no error and wait quietly for input; Ctrl+C to stop
 ```
 
-If you set up an earlier version, remove it first, including any copy deployed under another path. Otherwise the old registration can shadow the new one or point at a folder that no longer exists (PowerShell, Windows):
+Then register it in Cline: open **MCP Servers → Configure MCP Servers** to edit `cline_mcp_settings.json`, and add the `ameba-mcp` entry from [`cline_mcp_settings.example.json`](cline_mcp_settings.example.json):
 
-```powershell
-claude mcp list                                  # look for ameba-mcp, ameba-mcp-aws-kvs, or any entry whose path is \\wsl.localhost\...
-claude mcp remove ameba-mcp --scope user         # repeat for each old name; "No MCP server found" means it is already gone
+```json
+{
+  "mcpServers": {
+    "ameba-mcp": {
+      "command": "wsl",
+      "args": [
+        "-d", "Ubuntu",
+        "--cd", "/your/wsl/path/to/repo/mcp",
+        "/your/wsl/path/to/.local/bin/uv", "run", "server.py"
+      ],
+      "disabled": false
+    }
+  }
+}
 ```
 
-If an entry was added at another scope, rerun with `--scope local` or `--scope project`. Then delete the old server folder under the WSL path, if there is one, and stop any running copy first.
+Replace the two paths: `--cd` is the WSL path to this `mcp/` folder, and the `uv` path is the output of `which uv` in WSL. Change `Ubuntu` if your WSL distribution has another name.
 
-Register it (PowerShell, Windows; name right after `add`; answer `n` to any update prompt):
-
-```powershell
-claude mcp add ameba-mcp --scope user -- uv --directory \\wsl.localhost\Ubuntu\home\<user>\ameba-educate\mcp run ameba-mcp
-```
+If you set up an earlier version, remove its entry from `cline_mcp_settings.json` first (for example `ameba-mcp-aws-kvs`, or any entry pointing at a folder that no longer exists). Otherwise the old entry can shadow the new one.
 
 Credentials: copy `.env.example` to `.env` in this folder and fill it in. `.env` is git-ignored. AWS and `KVS_STREAM_NAME` values are read at server startup (restart the server after editing them). The vision keys are re-read from `.env` on every `aws_analyze_kvs_frames` call, so changing them needs no restart. Variables already set in the environment take priority over the file.
 
@@ -66,7 +73,7 @@ ANTHROPIC_API_KEY=<key>
 GEMINI_API_KEY=<key>
 ```
 
-`AWS_REGION` is optional (the value above is the default) and `KVS_STREAM_NAME` is only used by `aws_download_kvs_frames`. Both must match where the board uploads. Instead of `.env`, you can run `aws configure` once, or pass the variables with `claude mcp add -e NAME=value` (this stores the secret in plain text in `~/.claude.json`).
+`AWS_REGION` is optional (the value above is the default) and `KVS_STREAM_NAME` is only used by `aws_download_kvs_frames`. Both must match where the board uploads. Instead of `.env`, you can run `aws configure` once, or add an `"env": { "NAME": "value" }` block to the server entry in `cline_mcp_settings.json` (this stores the secret in plain text in that file).
 
 Vision provider selection for `aws_analyze_kvs_frames`: Anthropic is used if `ANTHROPIC_API_KEY` is set, otherwise Gemini (`GEMINI_API_KEY` or `GOOGLE_API_KEY`). Optional variables in `.env`:
 
@@ -78,7 +85,7 @@ Vision provider selection for `aws_analyze_kvs_frames`: Anthropic is used if `AN
 
 The server prints the selected provider to stderr at startup.
 
-Start a new Claude Code session afterwards. To change dependencies later, stop the MCP server first or `uv sync` cannot replace its `.exe`.
+Afterwards, restart the server in Cline (toggle `ameba-mcp` off and on under **MCP Servers**) so it picks up the new settings. After changing dependencies with `uv sync`, restart it the same way.
 
 ## Usage
 

@@ -112,7 +112,7 @@ The AWS key and secret in `example/kvs_producer_mmf/sample_config.h` are placeho
 
 ## AI Assistant Integration (MCP)
 
-The [`mcp/`](mcp/README.md) server exposes the board and the cloud stream to an MCP-capable assistant such as Claude Code.
+The [`mcp/`](mcp/README.md) server exposes the board and the cloud stream to an MCP-capable assistant such as Cline.
 
 | Capability | Tools |
 |---|---|
